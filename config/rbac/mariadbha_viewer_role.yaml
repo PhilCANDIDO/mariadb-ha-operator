@@ -1,0 +1,23 @@
+# permissions for end users to view mariadbhas.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: mariadb-ha-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: mariadbha-viewer-role
+rules:
+- apiGroups:
+  - database.cpf-it.fr
+  resources:
+  - mariadbhas
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - database.cpf-it.fr
+  resources:
+  - mariadbhas/status
+  verbs:
+  - get

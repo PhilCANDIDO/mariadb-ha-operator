@@ -1,0 +1,9 @@
+apiVersion: database.cpf-it.fr/v1alpha1
+kind: MariaDBHA
+metadata:
+  labels:
+    app.kubernetes.io/name: mariadb-ha-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: mariadbha-sample
+spec:
+  # TODO(user): Add fields here

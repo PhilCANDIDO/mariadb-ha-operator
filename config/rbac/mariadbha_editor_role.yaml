@@ -1,0 +1,27 @@
+# permissions for end users to edit mariadbhas.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: mariadb-ha-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: mariadbha-editor-role
+rules:
+- apiGroups:
+  - database.cpf-it.fr
+  resources:
+  - mariadbhas
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - database.cpf-it.fr
+  resources:
+  - mariadbhas/status
+  verbs:
+  - get
