@@ -1,9 +1,92 @@
 apiVersion: database.cpf-it.fr/v1alpha1
 kind: MariaDBHA
 metadata:
-  labels:
-    app.kubernetes.io/name: mariadb-ha-operator
-    app.kubernetes.io/managed-by: kustomize
-  name: mariadbha-sample
+  name: comptabilite-db
+  namespace: client-ns-1
 spec:
-  # TODO(user): Add fields here
+  instances:
+    commonConfig:
+      version: "11.5"
+      image: "mariadb:11.5"
+      configurationParameters:
+        max_connections: "500"
+        innodb_buffer_pool_size: "2G"
+        character-set-server: "utf8mb4"
+        collation-server: "utf8mb4_unicode_ci"
+      userCredentialsSecret:
+        name: mariadb-credentials
+        keys:
+          username: MARIADB_USER
+          password: MARIADB_PASSWORD
+          rootPassword: MARIADB_ROOT_PASSWORD
+    
+    primary:
+      resources:
+        requests:
+          cpu: "1"
+          memory: "4Gi"
+        limits:
+          cpu: "2"
+          memory: "6Gi"
+      storage:
+        storageClassName: "fast-ssd"
+        size: "50Gi"
+        accessModes:
+          - ReadWriteOnce
+      config:
+        configurationParameters:
+          # Paramètres spécifiques au primaire
+          innodb_flush_log_at_trx_commit: "1"
+          sync_binlog: "1"
+      
+    secondary:
+      resources:
+        requests:
+          cpu: "1"
+          memory: "4Gi"
+        limits:
+          cpu: "2"
+          memory: "6Gi"
+      storage:
+        storageClassName: "standard-ssd"
+        size: "50Gi"
+        accessModes:
+          - ReadWriteOnce
+      config:
+        configurationParameters:
+          # Paramètres spécifiques au secondaire
+          innodb_flush_log_at_trx_commit: "2"
+          sync_binlog: "0"
+          read_only: "ON"
+          
+  replication:
+    mode: "async"
+    user: "replicator"
+    automaticFailover: true
+    maxLagSeconds: 30
+    reconnectRetries: 5
+    
+  failover:
+    failureDetection:
+      healthCheckIntervalSeconds: 5
+      failureThresholdCount: 3
+      timeoutSeconds: 2
+      healthChecks: 
+        - "tcpConnection"
+        - "sqlQuery"
+        - "replicationStatus"
+    promotionStrategy: "safe"
+    minimumIntervalSeconds: 300  # 5 minutes entre deux failovers
+    automaticFailback: true
+    readOnlyMode: false
+    
+  monitoring:
+    enabled: true
+    prometheusExporter: true
+    serviceMonitor: true
+    
+  backup:
+    enabled: true
+    schedule: "0 2 * * *"  # Tous les jours à 2h du matin
+    retentionPolicy: "7d"  # Conserver 7 jours de sauvegardes
+    storageLocation: "pvc://backups-pvc"
