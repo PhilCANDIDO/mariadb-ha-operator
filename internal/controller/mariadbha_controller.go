@@ -9,7 +9,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -152,8 +151,96 @@ func (r *MariaDBHAReconciler) handleDeletion(ctx context.Context, mariadbHA *dat
 	logger := log.FromContext(ctx)
 	logger.Info("Gestion de la suppression", "name", mariadbHA.Name)
 
-	// Supprimer les ressources créées (StatefulSets, Services, etc.)
-	// TODO: Ajouter la logique de nettoyage
+	// Suppression des StatefulSets
+	primaryStsName := fmt.Sprintf("%s-primary", mariadbHA.Name)
+	primarySts := &appsv1.StatefulSet{}
+	err := r.Get(ctx, client.ObjectKey{Namespace: mariadbHA.Namespace, Name: primaryStsName}, primarySts)
+	if err == nil {
+		logger.Info("Suppression du StatefulSet primaire", "name", primaryStsName)
+		if err := r.Delete(ctx, primarySts); err != nil && !errors.IsNotFound(err) {
+			logger.Error(err, "Impossible de supprimer le StatefulSet primaire")
+			return ctrl.Result{}, err
+		}
+	}
+
+	secondaryStsName := fmt.Sprintf("%s-secondary", mariadbHA.Name)
+	secondarySts := &appsv1.StatefulSet{}
+	err = r.Get(ctx, client.ObjectKey{Namespace: mariadbHA.Namespace, Name: secondaryStsName}, secondarySts)
+	if err == nil {
+		logger.Info("Suppression du StatefulSet secondaire", "name", secondaryStsName)
+		if err := r.Delete(ctx, secondarySts); err != nil && !errors.IsNotFound(err) {
+			logger.Error(err, "Impossible de supprimer le StatefulSet secondaire")
+			return ctrl.Result{}, err
+		}
+	}
+
+	// Suppression des Services
+	primarySvcName := fmt.Sprintf("%s-primary", mariadbHA.Name)
+	primarySvc := &corev1.Service{}
+	err = r.Get(ctx, client.ObjectKey{Namespace: mariadbHA.Namespace, Name: primarySvcName}, primarySvc)
+	if err == nil {
+		logger.Info("Suppression du Service primaire", "name", primarySvcName)
+		if err := r.Delete(ctx, primarySvc); err != nil && !errors.IsNotFound(err) {
+			logger.Error(err, "Impossible de supprimer le Service primaire")
+			return ctrl.Result{}, err
+		}
+	}
+
+	secondarySvcName := fmt.Sprintf("%s-secondary", mariadbHA.Name)
+	secondarySvc := &corev1.Service{}
+	err = r.Get(ctx, client.ObjectKey{Namespace: mariadbHA.Namespace, Name: secondarySvcName}, secondarySvc)
+	if err == nil {
+		logger.Info("Suppression du Service secondaire", "name", secondarySvcName)
+		if err := r.Delete(ctx, secondarySvc); err != nil && !errors.IsNotFound(err) {
+			logger.Error(err, "Impossible de supprimer le Service secondaire")
+			return ctrl.Result{}, err
+		}
+	}
+
+	clusterSvcName := fmt.Sprintf("%s-mariadb", mariadbHA.Name)
+	clusterSvc := &corev1.Service{}
+	err = r.Get(ctx, client.ObjectKey{Namespace: mariadbHA.Namespace, Name: clusterSvcName}, clusterSvc)
+	if err == nil {
+		logger.Info("Suppression du Service cluster", "name", clusterSvcName)
+		if err := r.Delete(ctx, clusterSvc); err != nil && !errors.IsNotFound(err) {
+			logger.Error(err, "Impossible de supprimer le Service cluster")
+			return ctrl.Result{}, err
+		}
+	}
+
+	readOnlySvcName := fmt.Sprintf("%s-mariadb-ro", mariadbHA.Name)
+	readOnlySvc := &corev1.Service{}
+	err = r.Get(ctx, client.ObjectKey{Namespace: mariadbHA.Namespace, Name: readOnlySvcName}, readOnlySvc)
+	if err == nil {
+		logger.Info("Suppression du Service readonly", "name", readOnlySvcName)
+		if err := r.Delete(ctx, readOnlySvc); err != nil && !errors.IsNotFound(err) {
+			logger.Error(err, "Impossible de supprimer le Service readonly")
+			return ctrl.Result{}, err
+		}
+	}
+
+	// Suppression des ConfigMaps
+	primaryCfgName := fmt.Sprintf("%s-primary-config", mariadbHA.Name)
+	primaryCfg := &corev1.ConfigMap{}
+	err = r.Get(ctx, client.ObjectKey{Namespace: mariadbHA.Namespace, Name: primaryCfgName}, primaryCfg)
+	if err == nil {
+		logger.Info("Suppression du ConfigMap primaire", "name", primaryCfgName)
+		if err := r.Delete(ctx, primaryCfg); err != nil && !errors.IsNotFound(err) {
+			logger.Error(err, "Impossible de supprimer le ConfigMap primaire")
+			return ctrl.Result{}, err
+		}
+	}
+
+	secondaryCfgName := fmt.Sprintf("%s-secondary-config", mariadbHA.Name)
+	secondaryCfg := &corev1.ConfigMap{}
+	err = r.Get(ctx, client.ObjectKey{Namespace: mariadbHA.Namespace, Name: secondaryCfgName}, secondaryCfg)
+	if err == nil {
+		logger.Info("Suppression du ConfigMap secondaire", "name", secondaryCfgName)
+		if err := r.Delete(ctx, secondaryCfg); err != nil && !errors.IsNotFound(err) {
+			logger.Error(err, "Impossible de supprimer le ConfigMap secondaire")
+			return ctrl.Result{}, err
+		}
+	}
 
 	// Une fois tout nettoyé, retirer le finalizer
 	controllerutil.RemoveFinalizer(mariadbHA, mariadbHAFinalizer)
@@ -166,43 +253,225 @@ func (r *MariaDBHAReconciler) handleDeletion(ctx context.Context, mariadbHA *dat
 	return ctrl.Result{}, nil
 }
 
-// reconcileStatefulSets crée ou met à jour les StatefulSets pour les instances primaire et secondaire
-func (r *MariaDBHAReconciler) reconcileStatefulSets(ctx context.Context, mariadbHA *databasev1alpha1.MariaDBHA) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
-	logger.Info("Réconciliation des StatefulSets")
-
-	// TODO: Implémenter la logique de gestion des StatefulSets
-	// 1. Créer/mettre à jour le StatefulSet primaire
-	// 2. Créer/mettre à jour le StatefulSet secondaire
-	// 3. Vérifier l'état des StatefulSets
-
-	return ctrl.Result{}, nil
-}
-
-// reconcileServices crée ou met à jour les Services pour les instances
-func (r *MariaDBHAReconciler) reconcileServices(ctx context.Context, mariadbHA *databasev1alpha1.MariaDBHA) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
-	logger.Info("Réconciliation des Services")
-
-	// TODO: Implémenter la logique de gestion des Services
-	// 1. Créer/mettre à jour le Service pour le primaire
-	// 2. Créer/mettre à jour le Service pour le secondaire
-	// 3. Créer/mettre à jour le Service d'accès général (qui pointe vers le primaire)
-
-	return ctrl.Result{}, nil
-}
-
 // reconcileReplication configure la réplication entre primaire et secondaire
 func (r *MariaDBHAReconciler) reconcileReplication(ctx context.Context, mariadbHA *databasev1alpha1.MariaDBHA) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("Réconciliation de la réplication")
 
-	// TODO: Implémenter la logique de configuration de la réplication
-	// 1. Vérifier si les deux instances sont prêtes
-	// 2. Configurer la réplication si nécessaire
-	// 3. Vérifier l'état de la réplication
+	// Vérifier si les deux instances sont prêtes
+	primaryReady, err := r.isStatefulSetReady(ctx, mariadbHA, true)
+	if err != nil {
+		logger.Error(err, "Erreur lors de la vérification de l'état du StatefulSet primaire")
+		return ctrl.Result{}, err
+	}
+
+	secondaryReady, err := r.isStatefulSetReady(ctx, mariadbHA, false)
+	if err != nil {
+		logger.Error(err, "Erreur lors de la vérification de l'état du StatefulSet secondaire")
+		return ctrl.Result{}, err
+	}
+
+	if !primaryReady || !secondaryReady {
+		logger.Info("Les StatefulSets ne sont pas encore prêts, report de la configuration de réplication")
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+	}
+
+	// Vérifier si la réplication est déjà configurée via le statut
+	replicationConfigured := false
+	for _, condition := range mariadbHA.Status.Conditions {
+		if condition.Type == conditionReplicationActive && condition.Status == metav1.ConditionTrue {
+			replicationConfigured = true
+			break
+		}
+	}
+
+	if replicationConfigured {
+		logger.Info("La réplication est déjà configurée")
+		return ctrl.Result{}, nil
+	}
+
+	// Récupérer les informations de connexion aux instances
+	primaryInfo, err := getMariaDBConnectionInfo(ctx, r.Client, mariadbHA, true)
+	if err != nil {
+		logger.Error(err, "Impossible de récupérer les informations de connexion du primaire")
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
+	secondaryInfo, err := getMariaDBConnectionInfo(ctx, r.Client, mariadbHA, false)
+	if err != nil {
+		logger.Error(err, "Impossible de récupérer les informations de connexion du secondaire")
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
+	// Configurer la réplication
+	err = r.setupReplication(ctx, mariadbHA, primaryInfo, secondaryInfo)
+	if err != nil {
+		logger.Error(err, "Échec de la configuration de la réplication")
+		r.Recorder.Event(mariadbHA, corev1.EventTypeWarning, "ReplicationSetupFailed", 
+			fmt.Sprintf("Échec de la configuration de la réplication: %s", err.Error()))
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
+	// Mettre à jour la condition de réplication
+	newCondition := metav1.Condition{
+		Type:               conditionReplicationActive,
+		Status:             metav1.ConditionTrue,
+		Reason:             "ReplicationConfigured",
+		Message:            "La réplication a été configurée avec succès",
+		LastTransitionTime: metav1.Now(),
+	}
+
+	// Mettre à jour les conditions
+	updated := false
+	for i, condition := range mariadbHA.Status.Conditions {
+		if condition.Type == conditionReplicationActive {
+			mariadbHA.Status.Conditions[i] = newCondition
+			updated = true
+			break
+		}
+	}
+
+	if !updated {
+		mariadbHA.Status.Conditions = append(mariadbHA.Status.Conditions, newCondition)
+	}
+
+	if err := r.Status().Update(ctx, mariadbHA); err != nil {
+		logger.Error(err, "Impossible de mettre à jour le statut de réplication")
+		return ctrl.Result{}, err
+	}
+
+	r.Recorder.Event(mariadbHA, corev1.EventTypeNormal, "ReplicationConfigured", 
+		"La réplication a été configurée avec succès")
 
 	return ctrl.Result{}, nil
+}
+
+// setupReplication configure la réplication entre le primaire et le secondaire
+func (r *MariaDBHAReconciler) setupReplication(ctx context.Context, mariadbHA *databasev1alpha1.MariaDBHA, primaryInfo, secondaryInfo *MariaDBConnectionInfo) error {
+	logger := log.FromContext(ctx)
+	
+	// Récupérer le nom d'utilisateur de réplication depuis la CR
+	replicationUser := "replicator"
+	if mariadbHA.Spec.Replication.User != "" {
+		replicationUser = mariadbHA.Spec.Replication.User
+	}
+	
+	// Récupérer le mot de passe de réplication depuis le secret
+	secretName := ""
+	if mariadbHA.Spec.Instances.CommonConfig.UserCredentialsSecret != nil {
+		secretName = mariadbHA.Spec.Instances.CommonConfig.UserCredentialsSecret.Name
+	}
+	
+	if secretName == "" {
+		return fmt.Errorf("aucun secret spécifié pour les credentials de réplication")
+	}
+	
+	secret := &corev1.Secret{}
+	err := r.Get(ctx, client.ObjectKey{Namespace: mariadbHA.Namespace, Name: secretName}, secret)
+	if err != nil {
+		return fmt.Errorf("impossible de récupérer le secret: %w", err)
+	}
+	
+	replicationPassword := string(secret.Data["MARIADB_REPLICATION_PASSWORD"])
+	if replicationPassword == "" {
+		return fmt.Errorf("mot de passe de réplication non trouvé dans le secret")
+	}
+	
+	// Se connecter au primaire pour obtenir la position actuelle du binlog
+	primaryDB, err := connectToDatabase(primaryInfo)
+	if err != nil {
+		return fmt.Errorf("impossible de se connecter au primaire: %w", err)
+	}
+	defer primaryDB.Close()
+	
+	// Obtenir la position du binlog
+	var binlogFile string
+	var binlogPos int
+	
+	err = primaryDB.QueryRow("SHOW MASTER STATUS").Scan(&binlogFile, &binlogPos)
+	if err != nil {
+		return fmt.Errorf("impossible d'obtenir la position du binlog: %w", err)
+	}
+	
+	logger.Info("Position du binlog obtenue", "file", binlogFile, "position", binlogPos)
+	
+	// Se connecter au secondaire pour configurer la réplication
+	secondaryDB, err := connectToDatabase(secondaryInfo)
+	if err != nil {
+		return fmt.Errorf("impossible de se connecter au secondaire: %w", err)
+	}
+	defer secondaryDB.Close()
+	
+	// Arrêter la réplication si elle est déjà en cours
+	_, err = secondaryDB.Exec("STOP SLAVE")
+	if err != nil {
+		// Essayer avec la nouvelle syntaxe
+		_, err = secondaryDB.Exec("STOP REPLICA")
+		if err != nil {
+			logger.Info("Impossible d'arrêter la réplication, elle n'est probablement pas encore configurée")
+		}
+	}
+	
+	// Configurer la réplication
+	replicationMode := "AFTER_GTID"
+	if mariadbHA.Spec.Replication.Mode == "semisync" {
+		// Activer la réplication semi-synchrone sur le primaire
+		_, err = primaryDB.Exec("INSTALL PLUGIN rpl_semi_sync_master SONAME 'semisync_master.so'")
+		if err != nil {
+			logger.Info("Plugin rpl_semi_sync_master déjà installé ou erreur", "error", err)
+		}
+		
+		_, err = primaryDB.Exec("SET GLOBAL rpl_semi_sync_master_enabled = 1")
+		if err != nil {
+			return fmt.Errorf("impossible d'activer la réplication semi-synchrone sur le primaire: %w", err)
+		}
+		
+		// Activer la réplication semi-synchrone sur le secondaire
+		_, err = secondaryDB.Exec("INSTALL PLUGIN rpl_semi_sync_slave SONAME 'semisync_slave.so'")
+		if err != nil {
+			logger.Info("Plugin rpl_semi_sync_slave déjà installé ou erreur", "error", err)
+		}
+		
+		_, err = secondaryDB.Exec("SET GLOBAL rpl_semi_sync_slave_enabled = 1")
+		if err != nil {
+			return fmt.Errorf("impossible d'activer la réplication semi-synchrone sur le secondaire: %w", err)
+		}
+	}
+	
+	// Configurer la réplication
+	query := fmt.Sprintf(
+		"CHANGE MASTER TO "+
+		"MASTER_HOST='%s', "+
+		"MASTER_PORT=%d, "+
+		"MASTER_USER='%s', "+
+		"MASTER_PASSWORD='%s', "+
+		"MASTER_LOG_FILE='%s', "+
+		"MASTER_LOG_POS=%d",
+		primaryInfo.Host,
+		primaryInfo.Port,
+		replicationUser,
+		replicationPassword,
+		binlogFile,
+		binlogPos,
+	)
+	
+	_, err = secondaryDB.Exec(query)
+	if err != nil {
+		return fmt.Errorf("impossible de configurer la réplication: %w", err)
+	}
+	
+	// Démarrer la réplication
+	_, err = secondaryDB.Exec("START SLAVE")
+	if err != nil {
+		// Essayer avec la nouvelle syntaxe
+		_, err = secondaryDB.Exec("START REPLICA")
+		if err != nil {
+			return fmt.Errorf("impossible de démarrer la réplication: %w", err)
+		}
+	}
+	
+	logger.Info("Réplication configurée avec succès")
+	return nil
 }
 
 // checkHealth surveille l'état de santé des instances MariaDB
@@ -210,18 +479,16 @@ func (r *MariaDBHAReconciler) checkHealth(ctx context.Context, mariadbHA *databa
 	logger := log.FromContext(ctx)
 	logger.Info("Vérification de l'état de santé du cluster")
 
-	// Vérifier si un health check récent existe déjà
-	// Si non, lancer un health check
-	healthCheckResult, err := r.performHealthCheck(ctx, mariadbHA)
+	// Exécuter un health check complet
+	healthCheckResult, err := r.performCompleteHealthCheck(ctx, mariadbHA)
 	if err != nil {
 		logger.Error(err, "Erreur lors du health check")
 		return ctrl.Result{}, err
 	}
 
-	// Analyser les résultats du health check
+	// Analyser les résultats du health check et prendre des décisions
 	if !healthCheckResult.primaryHealthy {
-		// Incrémenter le compteur d'échecs pour le primaire
-		// Si le seuil est dépassé, déclencher un failover
+		// Incrémenter le compteur d'échecs pour le primaire et vérifier le seuil
 		return r.handlePrimaryFailure(ctx, mariadbHA, healthCheckResult)
 	}
 
@@ -270,151 +537,6 @@ func (r *MariaDBHAReconciler) checkHealth(ctx context.Context, mariadbHA *databa
 
 	// Programmer la prochaine vérification
 	return ctrl.Result{RequeueAfter: defaultHealthCheckTTL}, nil
-}
-
-// HealthCheckResult contient les résultats d'un health check
-type HealthCheckResult struct {
-	primaryHealthy    bool
-	secondaryHealthy  bool
-	replicationHealthy bool
-	replicationLag    *int32
-	primaryFailCount  int
-	secondaryFailCount int
-}
-
-// performHealthCheck exécute les vérifications de santé sur les instances MariaDB
-func (r *MariaDBHAReconciler) performHealthCheck(ctx context.Context, mariadbHA *databasev1alpha1.MariaDBHA) (HealthCheckResult, error) {
-	logger := log.FromContext(ctx)
-	logger.Info("Exécution des health checks")
-
-	result := HealthCheckResult{
-		primaryHealthy:    false,
-		secondaryHealthy:  false,
-		replicationHealthy: false,
-	}
-
-	// TODO: Implémenter la logique des health checks
-	// 1. Vérifier la connexion TCP
-	// 2. Exécuter une requête SQL simple
-	// 3. Vérifier l'état de la réplication
-	// 4. Mesurer le lag de réplication
-
-	// Exemple de logique pour les tests:
-	result.primaryHealthy = true
-	result.secondaryHealthy = true
-	result.replicationHealthy = true
-	lagValue := int32(10) // Exemple: 10 secondes de retard
-	result.replicationLag = &lagValue
-
-	return result, nil
-}
-
-// handlePrimaryFailure gère la défaillance du serveur primaire
-func (r *MariaDBHAReconciler) handlePrimaryFailure(ctx context.Context, mariadbHA *databasev1alpha1.MariaDBHA, healthCheck HealthCheckResult) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
-	logger.Info("Gestion de la défaillance du primaire")
-
-	// Si le basculement automatique n'est pas activé, juste marquer comme défaillant
-	autoFailover := mariadbHA.Spec.Replication.AutomaticFailover != nil && *mariadbHA.Spec.Replication.AutomaticFailover
-	if !autoFailover {
-		if mariadbHA.Status.Phase != PhaseFailing {
-			mariadbHA.Status.Phase = PhaseFailing
-			r.Recorder.Event(mariadbHA, corev1.EventTypeWarning, "PrimaryFailure", 
-				"Le serveur primaire n'est pas disponible, intervention manuelle requise")
-			if err := r.Status().Update(ctx, mariadbHA); err != nil {
-				logger.Error(err, "Impossible de mettre à jour le statut")
-				return ctrl.Result{}, err
-			}
-		}
-		return ctrl.Result{RequeueAfter: defaultHealthCheckTTL}, nil
-	}
-
-	// Vérifier si le failover peut être déclenché
-	failureThreshold := int32(3) // Valeur par défaut
-	if mariadbHA.Spec.Failover.FailureDetection.FailureThresholdCount != nil {
-		failureThreshold = *mariadbHA.Spec.Failover.FailureDetection.FailureThresholdCount
-	}
-
-	// Incrémenter le compteur d'échecs et vérifier le seuil
-	healthCheck.primaryFailCount++
-	if int32(healthCheck.primaryFailCount) < failureThreshold {
-		logger.Info("Seuil de défaillance non atteint", 
-			"count", healthCheck.primaryFailCount,
-			"threshold", failureThreshold)
-		return ctrl.Result{RequeueAfter: defaultHealthCheckTTL}, nil
-	}
-
-	// Vérifier si le secondaire est sain avant de déclencher le failover
-	if !healthCheck.secondaryHealthy {
-		logger.Info("Failover impossible: le secondaire n'est pas sain")
-		mariadbHA.Status.Phase = PhaseFailing
-		r.Recorder.Event(mariadbHA, corev1.EventTypeWarning, "FailoverBlocked", 
-			"Failover impossible car le secondaire n'est pas disponible")
-		if err := r.Status().Update(ctx, mariadbHA); err != nil {
-			logger.Error(err, "Impossible de mettre à jour le statut")
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{RequeueAfter: defaultHealthCheckTTL}, nil
-	}
-
-	// Vérifier le délai minimum entre les failovers
-	if mariadbHA.Status.LastFailoverTime != nil {
-		minIntervalSeconds := int32(300) // 5 minutes par défaut
-		if mariadbHA.Spec.Failover.MinimumIntervalSeconds != nil {
-			minIntervalSeconds = *mariadbHA.Spec.Failover.MinimumIntervalSeconds
-		}
-		
-		lastFailover := mariadbHA.Status.LastFailoverTime.Time
-		minTimeBetweenFailovers := time.Duration(minIntervalSeconds) * time.Second
-		if time.Since(lastFailover) < minTimeBetweenFailovers {
-			logger.Info("Délai minimum entre failovers non écoulé",
-				"lastFailover", lastFailover,
-				"minimumInterval", minTimeBetweenFailovers)
-			return ctrl.Result{RequeueAfter: defaultHealthCheckTTL}, nil
-		}
-	}
-
-	// Déclencher le failover
-	logger.Info("Déclenchement du failover")
-	mariadbHA.Status.Phase = PhaseFailover
-	r.Recorder.Event(mariadbHA, corev1.EventTypeWarning, "FailoverStarted", 
-		"Démarrage du failover du primaire vers le secondaire")
-	
-	// Mettre à jour le statut
-	if err := r.Status().Update(ctx, mariadbHA); err != nil {
-		logger.Error(err, "Impossible de mettre à jour le statut pour le failover")
-		return ctrl.Result{}, err
-	}
-
-	// Réenchaîner immédiatement pour traiter la logique de failover
-	return ctrl.Result{Requeue: true}, nil
-}
-
-// handleFailover gère le processus de failover
-func (r *MariaDBHAReconciler) handleFailover(ctx context.Context, mariadbHA *databasev1alpha1.MariaDBHA) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
-	logger.Info("Exécution du failover")
-
-	// TODO: Implémenter la logique de failover
-	// 1. Arrêter la réplication sur le secondaire
-	// 2. Promouvoir le secondaire en primaire
-	// 3. Mettre à jour les services pour pointer vers le nouveau primaire
-	// 4. Enregistrer l'événement de failover
-
-	return ctrl.Result{}, nil
-}
-
-// handleRecovery gère la récupération après un failover
-func (r *MariaDBHAReconciler) handleRecovery(ctx context.Context, mariadbHA *databasev1alpha1.MariaDBHA) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
-	logger.Info("Exécution de la récupération")
-
-	// TODO: Implémenter la logique de récupération
-	// 1. Vérifier si l'ancien primaire est de nouveau disponible
-	// 2. Reconfigurer l'ancien primaire comme nouveau secondaire
-	// 3. Rétablir la réplication dans l'autre sens
-
-	return ctrl.Result{}, nil
 }
 
 // SetupWithManager configure le contrôleur avec le Manager
