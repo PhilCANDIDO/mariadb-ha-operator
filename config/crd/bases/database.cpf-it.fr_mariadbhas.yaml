@@ -1,0 +1,689 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.1
+  name: mariadbhas.database.cpf-it.fr
+spec:
+  group: database.cpf-it.fr
+  names:
+    kind: MariaDBHA
+    listKind: MariaDBHAList
+    plural: mariadbhas
+    singular: mariadbha
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Status
+      type: string
+    - jsonPath: .status.currentPrimary
+      name: Primary
+      type: string
+    - jsonPath: .status.currentSecondary
+      name: Secondary
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: MariaDBHA est la définition de l'API pour le contrôleur MariaDBHA
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: MariaDBHASpec définit les spécifications souhaitées pour
+              la ressource MariaDBHA
+            properties:
+              backup:
+                description: Backup définit les paramètres de sauvegarde
+                properties:
+                  enabled:
+                    description: Enabled indique si les sauvegardes sont activées
+                    type: boolean
+                  retentionPolicy:
+                    description: RetentionPolicy définit la politique de rétention
+                      des sauvegardes
+                    type: string
+                  schedule:
+                    description: Schedule définit la planification cron des sauvegardes
+                    type: string
+                  storageLocation:
+                    description: StorageLocation définit l'emplacement de stockage
+                      des sauvegardes
+                    type: string
+                type: object
+              failover:
+                description: Failover définit les paramètres de détection et de gestion
+                  du failover
+                properties:
+                  automaticFailback:
+                    description: |-
+                      AutomaticFailback indique si l'ancien primaire doit être réintégré comme
+                      secondaire après sa récupération
+                    type: boolean
+                  failureDetection:
+                    description: FailureDetection définit les paramètres de détection
+                      de défaillance
+                    properties:
+                      failureThresholdCount:
+                        description: |-
+                          FailureThresholdCount définit le nombre de vérifications échouées consécutives
+                          avant de considérer une instance comme défaillante
+                        format: int32
+                        type: integer
+                      healthCheckIntervalSeconds:
+                        description: HealthCheckIntervalSeconds définit l'intervalle
+                          entre les vérifications de santé
+                        format: int32
+                        type: integer
+                      healthChecks:
+                        description: HealthChecks définit les types de vérifications
+                          à effectuer
+                        items:
+                          type: string
+                        type: array
+                      timeoutSeconds:
+                        description: TimeoutSeconds définit le délai d'attente pour
+                          les vérifications de santé
+                        format: int32
+                        type: integer
+                    type: object
+                  minimumIntervalSeconds:
+                    description: MinimumIntervalSeconds définit l'intervalle minimum
+                      entre deux failovers
+                    format: int32
+                    type: integer
+                  promotionStrategy:
+                    description: PromotionStrategy définit la stratégie de promotion
+                      du secondaire
+                    enum:
+                    - safe
+                    - immediate
+                    type: string
+                  readOnlyMode:
+                    description: |-
+                      ReadOnlyMode indique si le nouveau primaire doit être promu en lecture seule
+                      après le failover (nécessitant une intervention manuelle pour activer l'écriture)
+                    type: boolean
+                required:
+                - failureDetection
+                type: object
+              instances:
+                description: Instances définit la configuration des instances MariaDB
+                  primaire et secondaire
+                properties:
+                  commonConfig:
+                    description: CommonConfig définit les configurations communes
+                      aux deux instances
+                    properties:
+                      configurationParameters:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          ConfigurationParameters contient les paramètres de configuration MariaDB
+                          à ajouter dans my.cnf
+                        type: object
+                      image:
+                        description: Image définit l'image Docker à utiliser
+                        type: string
+                      userCredentialsSecret:
+                        description: UserCredentialsSecret référence le secret contenant
+                          les identifiants pour se connecter à MariaDB
+                        properties:
+                          keys:
+                            additionalProperties:
+                              type: string
+                            description: Keys est un mapping des clés du secret vers
+                              leur utilisation
+                            type: object
+                          name:
+                            description: Name est le nom du secret
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      version:
+                        description: Version définit la version de MariaDB à utiliser
+                        type: string
+                    type: object
+                  primary:
+                    description: Primary définit la configuration de l'instance primaire
+                    properties:
+                      config:
+                        description: |-
+                          Config définit les paramètres spécifiques de cette instance MariaDB
+                          Ils seront fusionnés avec CommonConfig, cette config ayant la priorité
+                        properties:
+                          configurationParameters:
+                            additionalProperties:
+                              type: string
+                            description: |-
+                              ConfigurationParameters contient les paramètres de configuration MariaDB
+                              à ajouter dans my.cnf
+                            type: object
+                          image:
+                            description: Image définit l'image Docker à utiliser
+                            type: string
+                          userCredentialsSecret:
+                            description: UserCredentialsSecret référence le secret
+                              contenant les identifiants pour se connecter à MariaDB
+                            properties:
+                              keys:
+                                additionalProperties:
+                                  type: string
+                                description: Keys est un mapping des clés du secret
+                                  vers leur utilisation
+                                type: object
+                              name:
+                                description: Name est le nom du secret
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          version:
+                            description: Version définit la version de MariaDB à utiliser
+                            type: string
+                        type: object
+                      nodeSelector:
+                        additionalProperties:
+                          type: string
+                        description: NodeSelector permet de cibler des nœuds spécifiques
+                        type: object
+                      podAnnotations:
+                        additionalProperties:
+                          type: string
+                        description: PodAnnotations permet d'ajouter des annotations
+                          au pod
+                        type: object
+                      resources:
+                        description: Resources définit les ressources CPU et mémoire
+                          pour l'instance
+                        properties:
+                          claims:
+                            description: |-
+                              Claims lists the names of resources, defined in spec.resourceClaims,
+                              that are used by this container.
+
+                              This is an alpha field and requires enabling the
+                              DynamicResourceAllocation feature gate.
+
+                              This field is immutable. It can only be set for containers.
+                            items:
+                              description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                              properties:
+                                name:
+                                  description: |-
+                                    Name must match the name of one entry in pod.spec.resourceClaims of
+                                    the Pod where this field is used. It makes that resource available
+                                    inside a container.
+                                  type: string
+                                request:
+                                  description: |-
+                                    Request is the name chosen for a request in the referenced claim.
+                                    If empty, everything from the claim is made available, otherwise
+                                    only the result of this request.
+                                  type: string
+                              required:
+                              - name
+                              type: object
+                            type: array
+                            x-kubernetes-list-map-keys:
+                            - name
+                            x-kubernetes-list-type: map
+                          limits:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: |-
+                              Limits describes the maximum amount of compute resources allowed.
+                              More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                            type: object
+                          requests:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: |-
+                              Requests describes the minimum amount of compute resources required.
+                              If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                              otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                              More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                            type: object
+                        type: object
+                      storage:
+                        description: Storage définit les paramètres de stockage
+                        properties:
+                          accessModes:
+                            description: AccessModes définit les modes d'accès du
+                              PVC
+                            items:
+                              type: string
+                            type: array
+                          size:
+                            description: Size définit la taille du volume persistant
+                            type: string
+                          storageClassName:
+                            description: StorageClassName est le nom de la classe
+                              de stockage à utiliser
+                            type: string
+                        required:
+                        - size
+                        type: object
+                      tolerations:
+                        description: Tolerations permet de définir des tolérances
+                          pour le scheduling
+                        items:
+                          description: |-
+                            The pod this Toleration is attached to tolerates any taint that matches
+                            the triple <key,value,effect> using the matching operator <operator>.
+                          properties:
+                            effect:
+                              description: |-
+                                Effect indicates the taint effect to match. Empty means match all taint effects.
+                                When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                              type: string
+                            key:
+                              description: |-
+                                Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                                If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                              type: string
+                            operator:
+                              description: |-
+                                Operator represents a key's relationship to the value.
+                                Valid operators are Exists and Equal. Defaults to Equal.
+                                Exists is equivalent to wildcard for value, so that a pod can
+                                tolerate all taints of a particular category.
+                              type: string
+                            tolerationSeconds:
+                              description: |-
+                                TolerationSeconds represents the period of time the toleration (which must be
+                                of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                                it is not set, which means tolerate the taint forever (do not evict). Zero and
+                                negative values will be treated as 0 (evict immediately) by the system.
+                              format: int64
+                              type: integer
+                            value:
+                              description: |-
+                                Value is the taint value the toleration matches to.
+                                If the operator is Exists, the value should be empty, otherwise just a regular string.
+                              type: string
+                          type: object
+                        type: array
+                    required:
+                    - storage
+                    type: object
+                  secondary:
+                    description: Secondary définit la configuration de l'instance
+                      secondaire
+                    properties:
+                      config:
+                        description: |-
+                          Config définit les paramètres spécifiques de cette instance MariaDB
+                          Ils seront fusionnés avec CommonConfig, cette config ayant la priorité
+                        properties:
+                          configurationParameters:
+                            additionalProperties:
+                              type: string
+                            description: |-
+                              ConfigurationParameters contient les paramètres de configuration MariaDB
+                              à ajouter dans my.cnf
+                            type: object
+                          image:
+                            description: Image définit l'image Docker à utiliser
+                            type: string
+                          userCredentialsSecret:
+                            description: UserCredentialsSecret référence le secret
+                              contenant les identifiants pour se connecter à MariaDB
+                            properties:
+                              keys:
+                                additionalProperties:
+                                  type: string
+                                description: Keys est un mapping des clés du secret
+                                  vers leur utilisation
+                                type: object
+                              name:
+                                description: Name est le nom du secret
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          version:
+                            description: Version définit la version de MariaDB à utiliser
+                            type: string
+                        type: object
+                      nodeSelector:
+                        additionalProperties:
+                          type: string
+                        description: NodeSelector permet de cibler des nœuds spécifiques
+                        type: object
+                      podAnnotations:
+                        additionalProperties:
+                          type: string
+                        description: PodAnnotations permet d'ajouter des annotations
+                          au pod
+                        type: object
+                      resources:
+                        description: Resources définit les ressources CPU et mémoire
+                          pour l'instance
+                        properties:
+                          claims:
+                            description: |-
+                              Claims lists the names of resources, defined in spec.resourceClaims,
+                              that are used by this container.
+
+                              This is an alpha field and requires enabling the
+                              DynamicResourceAllocation feature gate.
+
+                              This field is immutable. It can only be set for containers.
+                            items:
+                              description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                              properties:
+                                name:
+                                  description: |-
+                                    Name must match the name of one entry in pod.spec.resourceClaims of
+                                    the Pod where this field is used. It makes that resource available
+                                    inside a container.
+                                  type: string
+                                request:
+                                  description: |-
+                                    Request is the name chosen for a request in the referenced claim.
+                                    If empty, everything from the claim is made available, otherwise
+                                    only the result of this request.
+                                  type: string
+                              required:
+                              - name
+                              type: object
+                            type: array
+                            x-kubernetes-list-map-keys:
+                            - name
+                            x-kubernetes-list-type: map
+                          limits:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: |-
+                              Limits describes the maximum amount of compute resources allowed.
+                              More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                            type: object
+                          requests:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: |-
+                              Requests describes the minimum amount of compute resources required.
+                              If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                              otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                              More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                            type: object
+                        type: object
+                      storage:
+                        description: Storage définit les paramètres de stockage
+                        properties:
+                          accessModes:
+                            description: AccessModes définit les modes d'accès du
+                              PVC
+                            items:
+                              type: string
+                            type: array
+                          size:
+                            description: Size définit la taille du volume persistant
+                            type: string
+                          storageClassName:
+                            description: StorageClassName est le nom de la classe
+                              de stockage à utiliser
+                            type: string
+                        required:
+                        - size
+                        type: object
+                      tolerations:
+                        description: Tolerations permet de définir des tolérances
+                          pour le scheduling
+                        items:
+                          description: |-
+                            The pod this Toleration is attached to tolerates any taint that matches
+                            the triple <key,value,effect> using the matching operator <operator>.
+                          properties:
+                            effect:
+                              description: |-
+                                Effect indicates the taint effect to match. Empty means match all taint effects.
+                                When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                              type: string
+                            key:
+                              description: |-
+                                Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                                If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                              type: string
+                            operator:
+                              description: |-
+                                Operator represents a key's relationship to the value.
+                                Valid operators are Exists and Equal. Defaults to Equal.
+                                Exists is equivalent to wildcard for value, so that a pod can
+                                tolerate all taints of a particular category.
+                              type: string
+                            tolerationSeconds:
+                              description: |-
+                                TolerationSeconds represents the period of time the toleration (which must be
+                                of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                                it is not set, which means tolerate the taint forever (do not evict). Zero and
+                                negative values will be treated as 0 (evict immediately) by the system.
+                              format: int64
+                              type: integer
+                            value:
+                              description: |-
+                                Value is the taint value the toleration matches to.
+                                If the operator is Exists, the value should be empty, otherwise just a regular string.
+                              type: string
+                          type: object
+                        type: array
+                    required:
+                    - storage
+                    type: object
+                required:
+                - primary
+                - secondary
+                type: object
+              monitoring:
+                description: Monitoring définit les options de surveillance
+                properties:
+                  enabled:
+                    description: Enabled indique si la surveillance est activée
+                    type: boolean
+                  exporterImage:
+                    description: ExporterImage définit l'image de l'exporteur à utiliser
+                    type: string
+                  prometheusExporter:
+                    description: PrometheusExporter indique si l'exporteur Prometheus
+                      doit être déployé
+                    type: boolean
+                  serviceMonitor:
+                    description: |-
+                      ServiceMonitor indique si un ServiceMonitor doit être créé
+                      pour l'intégration avec Prometheus Operator
+                    type: boolean
+                type: object
+              replication:
+                description: Replication définit les paramètres de réplication entre
+                  le primaire et le secondaire
+                properties:
+                  automaticFailover:
+                    description: AutomaticFailover indique si la promotion du secondaire
+                      doit être automatique
+                    type: boolean
+                  maxLagSeconds:
+                    description: MaxLagSeconds définit le retard maximum acceptable
+                      pour le secondaire
+                    format: int32
+                    type: integer
+                  mode:
+                    description: Mode définit le mode de réplication (async par défaut)
+                    enum:
+                    - async
+                    - semisync
+                    type: string
+                  reconnectRetries:
+                    description: ReconnectRetries définit le nombre de tentatives
+                      de reconnexion de la réplication
+                    format: int32
+                    type: integer
+                  user:
+                    description: User définit l'utilisateur de réplication
+                    type: string
+                type: object
+            required:
+            - failover
+            - instances
+            - replication
+            type: object
+          status:
+            description: MariaDBHAStatus définit l'état observé de la ressource MariaDBHA
+            properties:
+              conditions:
+                description: Conditions représente les conditions du système
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              currentPrimary:
+                description: CurrentPrimary indique le nom du pod qui est actuellement
+                  primaire
+                type: string
+              currentSecondary:
+                description: CurrentSecondary indique le nom du pod qui est actuellement
+                  secondaire
+                type: string
+              failoverHistory:
+                description: FailoverHistory contient l'historique des failovers
+                items:
+                  description: FailoverEvent représente un événement de failover
+                  properties:
+                    automatic:
+                      description: Automatic indique si le failover était automatique
+                      type: boolean
+                    duration:
+                      description: Duration indique la durée du failover en secondes
+                      format: int32
+                      type: integer
+                    newPrimary:
+                      description: NewPrimary indique le nouveau primaire
+                      type: string
+                    oldPrimary:
+                      description: OldPrimary indique l'ancien primaire
+                      type: string
+                    reason:
+                      description: Reason indique la raison du failover
+                      type: string
+                    timestamp:
+                      description: Timestamp indique la date du failover
+                      format: date-time
+                      type: string
+                  required:
+                  - automatic
+                  - newPrimary
+                  - oldPrimary
+                  - reason
+                  - timestamp
+                  type: object
+                type: array
+              lastFailoverTime:
+                description: LastFailoverTime indique la date du dernier failover
+                format: date-time
+                type: string
+              phase:
+                description: Phase indique la phase actuelle du cluster (Initializing,
+                  Running, Failing, Failover, etc.)
+                type: string
+              replicationLag:
+                description: ReplicationLag indique le retard de réplication en secondes
+                format: int32
+                type: integer
+            required:
+            - currentPrimary
+            - currentSecondary
+            - phase
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
